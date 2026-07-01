@@ -1,7 +1,7 @@
 from typing import Literal, cast
 
 from peft import LoraConfig, get_peft_model, TaskType
-from .config import LoRAConfig
+from policyforge.train import LoRAConfig
 
 def apply_lora(model, lora_cfg: LoRAConfig):
     """Apply LoRA adapters to SmolVLA's language/vision backbone."""

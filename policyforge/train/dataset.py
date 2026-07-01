@@ -1,7 +1,7 @@
 from torch.utils.data import Dataset, DataLoader
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 import torch
-from .config import TrainingConfig
+from policyforge.train import TrainingConfig
 
 def make_dataloaders(cfg: TrainingConfig):
     """Wraps LeRobot dataset into train/val DataLoaders."""
