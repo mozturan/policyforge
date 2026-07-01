@@ -3,10 +3,23 @@ import torch
 from torch.cuda.amp import GradScaler, autocast
 from pathlib import Path
 
-from policyforge.train.config import TrainingConfig
+from policyforge.train import TrainingConfig
+from policyforge.train import count_parameters
 
 class PolicyTrainer:
     def __init__(self, model, train_loader, val_loader, cfg: TrainingConfig):
+
+        """Trainer class for policy models.
+        
+        
+        Args:
+            model: The policy model to train.
+            train_loader: DataLoader for training data.
+            val_loader: DataLoader for validation data.
+            cfg: Training configuration.
+            scaler: Optional GradScaler for mixed precision training. If None, no mixed precision is used.
+        """
+
         self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
