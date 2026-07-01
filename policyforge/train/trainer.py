@@ -1,6 +1,8 @@
 import mlflow
 import torch
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp.autocast_mode import autocast
+from torch.cuda.amp import GradScaler
+from contextlib import nullcontext
 from pathlib import Path
 
 from policyforge.train import TrainingConfig
@@ -42,7 +44,19 @@ class PolicyTrainer:
         with mlflow.start_run():
             # Log all hyperparams — this is the point of config-driven training
             mlflow.log_params(self.cfg.model_dump())
-            mlflow.log_params(count_parameters(self.model))
+
+            # ensure all parameter counts are plain python numbers (no tensors) for MLflow
+            params = {}
+            for k, v in count_parameters(self.model).items():
+                if isinstance(v, torch.Tensor):
+                    try:
+                        params[k] = v.item()
+                    except Exception:
+                        params[k] = int(v)
+                else:
+                    params[k] = v
+            mlflow.log_params(params)
+
             mlflow.set_tag("model", self.cfg.model_name)
             mlflow.set_tag("dataset", self.cfg.dataset_name)
             
@@ -56,9 +70,9 @@ class PolicyTrainer:
                 self.scheduler.step()
                 
                 mlflow.log_metrics({
-                    "train/loss": train_loss,
-                    "val/loss": val_loss,
-                    "lr": self.scheduler.get_last_lr()[0],
+                    "train/loss": float(train_loss),
+                    "val/loss": float(val_loss),
+                    "lr": float(self.scheduler.get_last_lr()[0]),
                 }, step=epoch)
                 
                 # Save best checkpoint
@@ -96,7 +110,7 @@ class PolicyTrainer:
                 if dtype is not None:
                     ctx = autocast(device_type="cuda", dtype=dtype)
                 else:
-                    ctx = autocast()
+                    ctx = autocast(device_type="cuda")
             else:
                 ctx = nullcontext()
 
