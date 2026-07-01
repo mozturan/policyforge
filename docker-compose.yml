@@ -1,0 +1,39 @@
+# docker-compose.yml
+version: "3.9"
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlruns
+    command: mlflow server --host 0.0.0.0 --port 5000
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./checkpoints:/checkpoints
+    environment:
+      - CHECKPOINT_PATH=/checkpoints/latest
+    depends_on:
+      - mlflow
+
+  training:
+    build:
+      context: .
+      dockerfile: Dockerfile.train
+    volumes:
+      - ./checkpoints:/checkpoints
+      - ./mlruns:/mlruns
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
