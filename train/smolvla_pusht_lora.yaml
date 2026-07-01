@@ -1,0 +1,12 @@
+# configs/train/smolvla_pusht_lora.yaml  (lightweight, for quick iteration)
+model_name: "lerobot/smolvla_base"
+dataset_name: "lerobot/pusht"
+
+lora:
+  r: 8
+  lora_alpha: 16
+
+num_epochs: 20
+batch_size: 16
+experiment_name: "smolvla-pusht-lora-r8"
+
