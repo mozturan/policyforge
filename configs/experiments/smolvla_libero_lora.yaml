@@ -1,0 +1,69 @@
+# PolicyForge experiment config
+# Run with: make train EXP=smolvla_libero_lora
+# Dry run:  make train-dry EXP=smolvla_libero_lora
+
+# ── Training ─────────────────────────────────────────────────────────────────
+# These fields map 1-to-1 onto lerobot-train CLI flags.
+# PolicyForge translates this block into a subprocess call — it does NOT
+# reimplement training. lerobot-train handles everything including LoRA.
+
+policy_path:     lerobot/smolvla_base
+dataset_repo_id: HuggingFaceVLA/libero
+output_dir:      outputs/train/smolvla_libero_lora
+job_name:        smolvla_libero_lora
+
+steps:      100000
+batch_size: 32
+
+policy_optimizer_lr:       1.0e-3
+policy_scheduler_decay_lr: 1.0e-4
+
+# LoRA fine-tuning — remove this block entirely to do full fine-tuning instead
+peft:
+  method_type: LORA
+  r: 64
+
+# LIBERO simulation environment — used during lerobot-train's own eval loop
+env:
+  type: libero
+  task: libero_spatial   # libero_spatial | libero_goal | libero_object | libero_100
+
+# Set to your HuggingFace repo ID to auto-push checkpoint after training.
+# Leave empty to skip the Hub push.
+hub:
+  repo_id: ""            # e.g. "your-username/smolvla-libero-lora"
+
+# ── WandB (passed to lerobot-train) ──────────────────────────────────────────
+# lerobot-train handles WandB logging internally for training metrics.
+wandb:
+  enable:  true
+  project: policyforge
+
+# ── PolicyForge tracking ──────────────────────────────────────────────────────
+# Controls tracking for PolicyForge's own work: eval results, simulation
+# rollout metrics, experiment metadata. Separate from training metrics above.
+#
+# Backends:
+#   wandb   — logs to same WandB project, separate run named "eval_<job_name>"
+#   mlflow  — logs to self-hosted MLflow server (set MLFLOW_TRACKING_URI in .env)
+#   none    — no tracking (useful for quick local runs)
+tracking:
+  backend:    wandb
+  project:    policyforge
+  run_name:   ""          # auto-generated from job_name if left empty
+
+# ── Simulation ───────────────────────────────────────────────────────────────
+# Used by: scripts/evaluate.py (post-training benchmark)
+#          scripts/simulate.py (standalone visualization)
+#
+# Both scripts read this block. simulate.py also accepts CLI overrides:
+#   make simulate CKPT=... TASK=libero_goal N=5
+simulation:
+  task_suite:   libero_spatial   # suite to run rollouts on
+  n_episodes:   20               # rollouts per task
+  max_steps:    400              # max env steps per episode
+  render_size:  256              # camera resolution (pixels, square)
+  fps:          15               # output video framerate
+  record_video: true             # save mp4 for each episode
+  headless:     true             # use EGL (no display required)
+  output_dir:   ""               # defaults to <checkpoint>/rollouts/ if empty
