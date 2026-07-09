@@ -1,0 +1,67 @@
+# CI — runs on every push and pull request to main.
+#
+# Uses GitHub's free Ubuntu runner (no GPU).
+# Tests that need torch or LIBERO are automatically skipped via
+# pytest.importorskip() — they run locally when you do `make test`.
+#
+# What this workflow proves to anyone reading your repo:
+#   - The codebase is importable and structured correctly
+#   - Config parsing, metrics, reporting, and API validation all work
+#   - Nothing is broken by the latest commit
+
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Run test suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip            # cache the pip download cache between runs
+
+      - name: Install dependencies
+        # torch and lerobot are NOT in pyproject.toml (they need a special CUDA
+        # install command). Everything else installs here. Tests that need torch
+        # are automatically skipped with pytest.importorskip().
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+
+      - name: Verify experiment config parses correctly
+        # Smoke-test the YAML → dataclass parsing and command building
+        run: |
+          python -c "
+          from policyforge.runner import ExperimentConfig, build_command
+          cfg = ExperimentConfig.from_yaml('configs/experiments/smolvla_libero_lora.yaml')
+          cmd = build_command(cfg)
+          print('Config OK:', cfg.job_name)
+          print('LoRA rank:', cfg.peft.r if cfg.peft else 'none (full fine-tune)')
+          print('Command preview:', ' '.join(cmd[:4]), '...')
+          "
+
+      - name: Dry-run lerobot-train command
+        # Prints the full lerobot-train command without executing it.
+        # Confirms the runner.py translation is correct.
+        run: python scripts/train.py configs/experiments/smolvla_libero_lora.yaml --dry-run
+
+      - name: Upload test results
+        if: always()           # upload even if tests fail
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.sha }}
+          path: .pytest_cache/
+          retention-days: 7

@@ -1,0 +1,62 @@
+# Push a checkpoint to HuggingFace Hub with an auto-generated model card.
+#
+# Runs on GitHub's free Ubuntu runner — no GPU needed, just file upload.
+# The checkpoint must already exist on the runner (self-hosted) OR
+# this workflow must run after the eval workflow on the same machine.
+#
+# The simplest workflow is:
+#   1. Train locally:       make train EXP=smolvla_libero_lora
+#   2. Evaluate locally:    make eval CKPT=outputs/train/smolvla_libero_lora
+#   3. Push via this CI:    trigger manually from GitHub Actions UI
+#      OR push locally:     make push CKPT=... REPO=...
+#
+# This workflow exists to give you a reproducible audit trail —
+# every Hub push is linked to a specific commit and visible in Actions history.
+
+name: Push to HuggingFace Hub
+
+on:
+  workflow_dispatch:
+    inputs:
+      checkpoint:
+        description: "Checkpoint path (on the runner machine)"
+        required: true
+        default: "outputs/train/smolvla_libero_lora"
+      repo_id:
+        description: "HuggingFace repo ID (username/model-name)"
+        required: true
+      config:
+        description: "Experiment YAML for the model card"
+        required: false
+        default: "configs/experiments/smolvla_libero_lora.yaml"
+      message:
+        description: "Commit message for the Hub upload"
+        required: false
+        default: "Add PolicyForge checkpoint via CI"
+
+jobs:
+  push:
+    name: Push checkpoint to Hub
+    runs-on: self-hosted    # checkpoint lives on your machine
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Push to HuggingFace Hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python scripts/push_to_hub.py \
+            --checkpoint "${{ github.event.inputs.checkpoint }}" \
+            --repo-id "${{ github.event.inputs.repo_id }}" \
+            --config "${{ github.event.inputs.config }}" \
+            --message "${{ github.event.inputs.message }}"
+
+      - name: Post Hub URL to summary
+        run: |
+          echo "## Pushed to HuggingFace Hub" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Model:** https://huggingface.co/${{ github.event.inputs.repo_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Message:** ${{ github.event.inputs.message }}" >> $GITHUB_STEP_SUMMARY

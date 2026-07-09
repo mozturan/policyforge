@@ -1,0 +1,89 @@
+# Evaluate a trained checkpoint on LIBERO simulation.
+#
+# Runs on a SELF-HOSTED runner (your own machine with the RTX 3060).
+# GitHub's free runners have no GPU, so this cannot run there.
+#
+# How to register your machine as a self-hosted runner:
+#   1. Go to your repo → Settings → Actions → Runners → New self-hosted runner
+#   2. Follow the instructions to install and start the runner on your machine
+#   3. The runner will pick up jobs tagged `runs-on: self-hosted`
+#
+# Trigger this manually from:
+#   GitHub repo → Actions → "Evaluate checkpoint" → Run workflow
+#
+# Results are posted to the workflow summary (visible in the Actions UI)
+# and saved as a downloadable artifact.
+
+name: Evaluate checkpoint
+
+on:
+  workflow_dispatch:
+    inputs:
+      checkpoint:
+        description: "Checkpoint path (on the runner machine)"
+        required: true
+        default: "outputs/train/smolvla_libero_lora"
+      task:
+        description: "LIBERO task suite"
+        required: true
+        default: "libero_spatial"
+        type: choice
+        options:
+          - libero_spatial
+          - libero_goal
+          - libero_object
+          - libero_100
+      n_episodes:
+        description: "Episodes per task (more = reliable, but slower)"
+        required: true
+        default: "10"
+      headless:
+        description: "Headless rendering (no display)"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+jobs:
+  evaluate:
+    name: Run LIBERO evaluation
+    runs-on: self-hosted    # requires your machine registered as a GitHub runner
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run evaluation
+        env:
+          MUJOCO_GL: egl
+          PYOPENGL_PLATFORM: egl
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+        run: |
+          python scripts/evaluate.py \
+            --checkpoint "${{ github.event.inputs.checkpoint }}" \
+            --task "${{ github.event.inputs.task }}" \
+            --n-episodes "${{ github.event.inputs.n_episodes }}" \
+            --no-tracker \
+            --no-video
+
+      - name: Post results to workflow summary
+        run: |
+          echo "## Evaluation Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Checkpoint:** \`${{ github.event.inputs.checkpoint }}\`  " >> $GITHUB_STEP_SUMMARY
+          echo "**Task suite:** ${{ github.event.inputs.task }}  " >> $GITHUB_STEP_SUMMARY
+          echo "**Episodes per task:** ${{ github.event.inputs.n_episodes }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat "${{ github.event.inputs.checkpoint }}/eval/eval_report.md" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload eval report
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report-${{ github.sha }}
+          path: ${{ github.event.inputs.checkpoint }}/eval/
+          retention-days: 30
+
+      - name: Print report to log
+        run: cat "${{ github.event.inputs.checkpoint }}/eval/eval_report.md"
