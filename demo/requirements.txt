@@ -1,0 +1,7 @@
+# HuggingFace Spaces dependencies for the PolicyForge Gradio demo.
+# The full project uses pyproject.toml — this file is only for Spaces.
+gradio>=4.0.0
+requests>=2.31.0
+numpy>=1.24.0
+matplotlib>=3.8.0
+Pillow>=10.0.0
